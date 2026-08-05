@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Чат-бот проверки ДЗ</title>
+  </head>
+  <body>
+    <h1>Чат-бот для проверки ДЗ (YandexGPT через Cloud Functions)</h1>
+    <textarea id="question" rows="4" cols="50" placeholder="Введите задание..."></textarea><br />
+    <button id="sendBtn">Отправить</button>
+    <div id="response"></div>
+
+    <script type="module">
+      const sendBtn = document.getElementById('sendBtn');
+      const question = document.getElementById('question');
+      const response = document.getElementById('response');
+
+      // Вставьте сюда URL вашей функции (из консоли Yandex Cloud)
+      const FUNCTION_URL =
+        'https://functions.yandexcloud.net/d4e0djanh02gmh4he289?integration=raw';
+
+      sendBtn.addEventListener('click', async () => {
+        const text = question.value.trim();
+        if (!text) return;
+
+        response.textContent = 'Думаю…';
+
+        try {
+          const res = await fetch(FUNCTION_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text }),
+          });
+
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: 'Ошибка сети' }));
+            response.textContent = 'Ошибка: ' + (err.error || 'Неизвестная ошибка');
+            return;
+          }
+
+          const data = await res.json();
+          response.textContent = data.answer || 'Нет ответа';
+        } catch (e) {
+          response.textContent = 'Ошибка соединения: ' + e.message;
+        }
+      });
+    </script>
+  </body>
+</html>
+
+
+
+
+
+
+
