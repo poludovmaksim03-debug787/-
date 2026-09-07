@@ -1,121 +1,171 @@
 <!DOCTYPE html>
-<html lang="ru"> 
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Сканер ДЗ онлайн</title>
+    <title>Живой ИИ-Сканер для Сайта</title>
+    <!-- Подключаем библиотеку для работы с камерой и QR/штрихкодами -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 600px; margin: 20px auto; padding: 10px; text-align: center; }
-        .box { border: 2px dashed #ccc; padding: 20px; border-radius: 10px; margin-bottom: 20px; background: #f9f9f9; }
-        button { background: #007bff; color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 5px; cursor: pointer; margin: 5px; }
-        button:hover { background: #0056b3; }
-        #output { text-align: left; background: #f1f1f1; padding: 15px; border-radius: 5px; white-space: pre-wrap; display: none; }
-        input[type="text"] { width: 80%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 5px; text-align: center; }
-        img { max-width: 100%; max-height: 300px; margin-top: 15px; display: none; border-radius: 5px; }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f5f7fb;
+            color: #333;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            width: 100%;
+            max-width: 500px;
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+        }
+        h1 {
+            font-size: 22px;
+            text-align: center;
+            margin-bottom: 10px;
+            color: #1a1a1a;
+        }
+        p.subtitle {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 25px;
+        }
+        /* Стилизация контейнера камеры */
+        #interactive-camera {
+            width: 100%;
+            border-radius: 14px;
+            overflow: hidden;
+            background: #000;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+        }
+        /* Стили кнопок внутри библиотеки html5-qrcode */
+        #interactive-camera button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px;
+            transition: background 0.2s;
+        }
+        #interactive-camera button:hover {
+            background-color: #0056b3;
+        }
+        #interactive-camera select {
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            margin: 10px;
+        }
+        /* Окно результатов чата / ИИ */
+        .chat-box {
+            margin-top: 25px;
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            background: #eef2ff;
+            color: #4f46e5;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+        .ai-response {
+            background: #f8fafc;
+            border-left: 4px solid #4f46e5;
+            padding: 15px;
+            border-radius: 0 12px 12px 0;
+            font-size: 15px;
+            line-height: 1.5;
+            min-height: 60px;
+        }
+        .loading-dots::after {
+            content: '...';
+            animation: blink 1.5s infinite step-start;
+        }
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
     </style>
 </head>
 <body>
 
-    <h1>📝 Сканер Домашнего Задания</h1>
-    
-    <!-- Поле для ключа (так как на GitHub Pages нельзя безопасно прятать ключи) -->
-    <input type="text" id="apiKey" placeholder="Введите ваш Gemini API Key">
-    <p><small>Ключ нужен для работы нейросети. Он не сохраняется на сервере.</small></p>
+<div class="container">
+    <h1>Сканер-Бот для Сайта</h1>
+    <p class="subtitle">Разрешите доступ к камере и наведите её на код</p>
 
-    <div class="box">
-        <h3>Загрузите или сделайте фото ДЗ</h3>
-        <!-- Кнопка выбора файла или камеры смартфона -->
-        <input type="file" id="fileInput" accept="image/*" capture="environment" style="display: none;">
-        <button onclick="document.getElementById('fileInput').click()">📸 Сделать фото / Выбрать файл</button>
-        <br>
-        <img id="preview" alt="Превью ДЗ">
+    <!-- Живой видоискатель камеры -->
+    <div id="interactive-camera"></div>
+
+    <!-- Интерактивное окно «Общения с ИИ» -->
+    <div class="chat-box">
+        <div id="status" class="status-badge">📷 Камера готова к работе</div>
+        <div id="ai-text" class="ai-response">
+            Пожалуйста, наведите камеру на QR-код или штрихкод. Результат сканирования сразу отобразится здесь.
+        </div>
     </div>
+</div>
 
-    <button id="scanBtn" disabled>🤖 Решить задание</button>
+<script>
+    const statusBadge = document.getElementById('status');
+    const aiResponseBox = document.getElementById('ai-text');
 
-    <h3>Результат решения:</h3>
-    <div id="output">Тут появится ответ нейросети...</div>
+    // Функция, которая срабатывает при успешном сканировании
+    function onScanSuccess(decodedText, decodedResult) {
+        // Меняем статус на экране
+        statusBadge.style.background = "#def7ec";
+        statusBadge.style.color = "#03543f";
+        statusBadge.innerText = "✅ Успешно отсканировано";
 
-    <!-- Подключаем официальный SDK Google Gen AI для браузера -->
-    <script type="importmap">
-      {
-        "imports": {
-          "@google/genai": "https://esm.run"
+        // Имитируем мгновенный ответ чат-бота/ИИ на сайте
+        aiResponseBox.innerHTML = `
+            <strong>Обнаружен код:</strong> <span style="color:#2563eb;">${decodedText}</span><br><br>
+            <em>🤖 Ответ бота:</em> Я распознал эти данные! Если это ссылка, вы можете перейти по ней. Если это товар, я могу проверить его наличие на складе или сверить с базой данных.
+        `;
+        
+        // Виброотклик на смартфонах (если поддерживается)
+        if (navigator.vibrate) {
+            navigator.vibrate(100);
         }
-      }
-    </script>
+    }
 
-    <script type="module">
-        import { GoogleGenAI } from '@google/genai';
+    function onScanFailure(error) {
+        // Ошибки фокуса или отсутствия кода в кадре игнорируем, чтобы не спамить в консоль
+    }
 
-        const fileInput = document.getElementById('fileInput');
-        const preview = document.getElementById('preview');
-        const scanBtn = document.getElementById('scanBtn');
-        const output = document.getElementById('output');
-        const apiKeyInput = document.getElementById('apiKey');
+    // Инициализация сканера на странице сайта
+    let html5QrcodeScanner = new Html5QrcodeScanner(
+        "interactive-camera", 
+        { 
+            fps: 15,                           // Скорость сканирования (кадры в секунду)
+            qrbox: { width: 250, height: 250 }, // Размер рамки прицела
+            rememberLastUsedCamera: true       // Запоминать выбранную камеру (селфи или основную)
+        },
+        /* verbose= */ false
+    );
 
-        let base64Image = null;
-        let mimeType = null;
+    // Запуск трансляции видеопотока
+    html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+</script>
 
-        // 1. Чтение файла и перевод его в Base64 для нейросети
-        fileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            mimeType = file.type;
-            const reader = new FileReader();
-            
-            reader.onload = (event) => {
-                preview.src = event.target.result;
-                preview.style.display = 'inline-block';
-                // Отрезаем техническую часть "data:image/jpeg;base64,"
-                base64Image = event.target.result.split(',')[1];
-                scanBtn.disabled = false;
-            };
-            
-            reader.readAsDataURL(file);
-        });
-
-        // 2. Отправка фото в Gemini API
-        scanBtn.addEventListener('click', async () => {
-            const apiKey = apiKeyInput.value.trim();
-            if (!apiKey) {
-                alert('Пожалуйста, введите ваш Gemini API Key!');
-                return;
-            }
-
-            if (!base64Image) return;
-
-            output.style.display = 'block';
-            output.innerText = 'Нейросеть думает и решает задание, подождите...';
-            scanBtn.disabled = true;
-
-            try {
-                // Инициализируем ИИ с ключом, который ввел пользователь
-                const ai = new GoogleGenAI({ apiKey: apiKey });
-
-                const response = await ai.models.generateContent({
-                    model: 'gemini-2.5-flash',
-                    contents: [
-                        {
-                            inlineData: {
-                                mimeType: mimeType,
-                                data: base64Image
-                            }
-                        },
-                        "Распознай домашнее задание на этой картинке. Пошагово реши его и подробно объясни ответ на русском языке."
-                    ],
-                });
-
-                output.innerText = response.text;
-            } catch (error) {
-                console.error(error);
-                output.innerText = 'Произошла ошибка при обращении к ИИ: ' + error.message;
-            } finally {
-                scanBtn.disabled = false;
-            }
-        });
-    </script>
 </body>
 </html>
 
