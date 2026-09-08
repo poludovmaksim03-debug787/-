@@ -3,522 +3,483 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Интерактивный Сканер ДЗ в Реальном Времени</title>
+    <title>ИИ-Проверка ДЗ в реальном времени</title>
+    <!-- Подключаем библиотеку Tesseract.js из надежного CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
         :root {
-            --primary: #4F46E5;
-            --primary-hover: #4338CA;
-            --bg-dark: #0F172A;
-            --panel-bg: #1E293B;
-            --text-light: #F8FAFC;
-            --text-muted: #94A3B8;
-            --success: #10B981;
-            --warning: #F59E0B;
-            --danger: #EF4444;
+            --primary-color: #4A90E2;
+            --bg-color: #F5F7FA;
+            --chat-bg: #FFFFFF;
+            --text-color: #333333;
+            --bot-msg-bg: #EBF3FC;
+            --user-msg-bg: #4A90E2;
         }
 
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
 
         body {
-            background-color: var(--bg-dark);
-            color: var(--text-light);
-            min-height: 100vh;
+            background-color: var(--bg-color);
+            color: var(--text-color);
             display: flex;
-            flex-direction: column;
-        }
-
-        header {
-            background-color: var(--panel-bg);
-            padding: 1rem 2rem;
-            border-bottom: 1px solid #334155;
-            display: flex;
-            justify-content: space-between;
+            justify-content: center;
             align-items: center;
-        }
-
-        header h1 {
-            font-size: 1.5rem;
-            color: var(--text-light);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .badge {
-            background-color: var(--primary);
-            font-size: 0.75rem;
-            padding: 4px 8px;
-            border-radius: 12px;
-            text-transform: uppercase;
-        }
-
-        .main-container {
-            display: flex;
-            flex: 1;
-            padding: 1.5rem;
-            gap: 1.5rem;
-            height: calc(100vh - 70px);
+            height: 100vh;
             overflow: hidden;
         }
 
-        @media (max-width: 1024px) {
-            .main-container {
-                flex-direction: column;
-                height: auto;
-                overflow: vertical;
-            }
-            .scanner-section {
-                height: 500px !important;
-            }
-        }
-
-        /* Левая панель - Камера и управление */
-        .scanner-section {
-            flex: 1.2;
+        .app-container {
+            width: 100%;
+            max-width: 480px;
+            height: 100vh;
+            background: var(--chat-bg);
             display: flex;
             flex-direction: column;
-            gap: 1rem;
-            height: 100%;
-        }
-
-        .video-container {
-            flex: 1;
-            background-color: #000;
-            border-radius: 16px;
             position: relative;
-            overflow: hidden;
-            border: 2px solid #334155;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
         }
 
-        video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            transform: scaleX(1); /* Прямой поток для задней камеры */
+        @media (min-width: 481px) {
+            .app-container {
+                height: 90vh;
+                border-radius: 16px;
+            }
         }
 
-        /* Рамка фокуса под лист А4 / тетрадь */
-        .homework-overlay {
-            position: absolute;
-            top: 10%;
-            left: 10%;
-            right: 10%;
-            bottom: 10%;
-            border: 3px dashed rgba(255, 255, 255, 0.4);
-            border-radius: 12px;
-            pointer-events: none;
-            box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.6);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: border-color 0.3s;
-        }
-
-        .homework-overlay.scanning {
-            border-color: var(--primary);
-        }
-
-        /* Лазерная линия сканирования */
-        .laser-line {
-            display: none;
-            position: absolute;
-            left: 0;
-            width: 100%;
-            height: 4px;
-            background: linear-gradient(180deg, rgba(79, 70, 229, 0) 0%, rgba(79, 70, 229, 1) 50%, rgba(79, 70, 229, 0) 100%);
-            box-shadow: 0 0 12px var(--primary);
-            animation: scan 3s infinite ease-in-out;
-        }
-
-        @keyframes scan {
-            0% { top: 10%; }
-            50% { top: 90%; }
-            100% { top: 10%; }
-        }
-
-        .controls-card {
-            background-color: var(--panel-bg);
-            padding: 1rem;
-            border-radius: 12px;
-            display: flex;
-            gap: 1rem;
-            align-items: center;
-            border: 1px solid #334155;
-        }
-
-        .btn {
-            background-color: var(--primary);
+        /* Шапка */
+        .header {
+            padding: 16px;
+            background: var(--primary-color);
             color: white;
-            border: none;
-            padding: 0.75rem 1.5rem;
-            font-size: 1rem;
-            font-weight: 600;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            gap: 8px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 1.1rem;
+            border-top-left-radius: inherit;
+            border-top-right-radius: inherit;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
-        .btn:hover {
-            background-color: var(--primary-hover);
-        }
-
-        .btn-stop {
-            background-color: var(--danger);
-        }
-        .btn-stop:hover {
-            background-color: #DC2626;
-        }
-
-        .status-dot {
-            width: 12px;
-            height: 12px;
-            background-color: var(--text-muted);
-            border-radius: 50%;
-            display: inline-block;
-        }
-
-        .status-dot.active {
-            background-color: var(--success);
-            animation: pulse 1.5s infinite;
-        }
-
-        @keyframes pulse {
-            0% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.2); opacity: 0.5; }
-            100% { transform: scale(1); opacity: 1; }
-        }
-
-        /* Правая панель - Данные ИИ анализа */
-        .results-section {
+        /* Зона чата */
+        .chat-messages {
             flex: 1;
+            padding: 16px;
+            overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 1rem;
-            height: 100%;
-            overflow-y: auto;
-            padding-right: 5px;
+            gap: 12px;
         }
 
-        .results-section::-webkit-scrollbar {
-            width: 6px;
-        }
-        .results-section::-webkit-scrollbar-thumb {
-            background-color: #334155;
-            border-radius: 3px;
-        }
-
-        .card {
-            background-color: var(--panel-bg);
-            border-radius: 12px;
-            padding: 1.25rem;
-            border: 1px solid #334155;
+        .message {
+            max-width: 85%;
+            padding: 12px 16px;
+            border-radius: 14px;
+            font-size: 0.95rem;
+            line-height: 1.4;
+            word-wrap: break-word;
         }
 
-        .card-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 0.75rem;
-            color: var(--text-muted);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        .message.bot {
+            background: var(--bot-msg-bg);
+            color: var(--text-color);
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
         }
 
-        .ocr-box {
-            background-color: rgba(15, 23, 42, 0.5);
-            border-radius: 8px;
-            padding: 1rem;
-            font-family: monospace;
-            font-size: 0.9rem;
-            white-space: pre-wrap;
-            border-left: 4px solid var(--primary);
-            min-height: 120px;
-            max-height: 200px;
-            overflow-y: auto;
+        .message.user {
+            background: var(--user-msg-bg);
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
         }
 
-        .analysis-item {
-            margin-bottom: 1rem;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid #334155;
-        }
-
-        .analysis-item:last-child {
-            margin-bottom: 0;
-            padding-bottom: 0;
-            border-bottom: none;
-        }
-
-        .grade-badge {
-            font-size: 2rem;
-            font-weight: 800;
-            color: var(--success);
-            text-align: center;
-            padding: 0.5rem;
-            background-color: rgba(16, 185, 129, 0.1);
-            border-radius: 8px;
-            border: 1px solid rgba(16, 185, 129, 0.2);
-        }
-
-        .grade-badge.bad {
-            color: var(--danger);
-            background-color: rgba(239, 68, 68, 0.1);
-            border-radius: 8px;
-            border: 1px solid rgba(239, 68, 68, 0.2);
-        }
-
-        .error-highlight {
-            color: var(--danger);
-            background-color: rgba(239, 68, 68, 0.15);
-            padding: 2px 6px;
+        /* Индикатор загрузки / OCR */
+        .status-badge {
+            display: inline-block;
+            background: #FFF3CD;
+            color: #856404;
+            padding: 4px 8px;
             border-radius: 4px;
+            font-size: 0.8rem;
+            margin-top: 6px;
             font-weight: bold;
         }
 
-        .tip-box {
-            background-color: rgba(245, 158, 11, 0.1);
-            border-left: 4px solid var(--warning);
-            padding: 0.75rem;
-            border-radius: 0 8px 8px 0;
-            margin-top: 0.5rem;
-            font-size: 0.9rem;
+        /* Контейнер сканера (Камера) */
+        .scanner-container {
+            position: absolute;
+            top: 56px;
+            left: 0;
+            width: 100%;
+            height: calc(100% - 136px);
+            background: #000;
+            display: none;
+            z-index: 10;
         }
 
-        .placeholder-text {
-            color: var(--text-muted);
-            font-style: italic;
-            text-align: center;
-            padding: 2rem 0;
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Анимированный прицел сканера */
+        .scanner-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            box-shadow: inset 0 0 80px rgba(0,0,0,0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .scan-region {
+            width: 80%;
+            height: 60%;
+            border: 2px dashed #00FFCC;
+            border-radius: 8px;
+            position: relative;
+            box-shadow: 0 0 20px rgba(0, 255, 204, 0.3);
+        }
+
+        .scan-laser {
+            position: absolute;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(to right, transparent, #00FFCC, transparent);
+            top: 0;
+            animation: scanning 2.5s infinite linear;
+        }
+
+        @keyframes scanning {
+            0% { top: 0%; }
+            50% { top: 100%; }
+            100% { top: 0%; }
+        }
+
+        /* Панель управления сканером */
+        .scanner-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            padding: 0 20px;
+        }
+
+        .scan-btn {
+            padding: 12px 24px;
+            border-radius: 50px;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 0.95rem;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        .btn-capture { background: #00FFCC; color: #111; }
+        .btn-cancel { background: #FF4D4D; color: white; }
+
+        /* Нижняя панель ввода */
+        .input-panel {
+            padding: 12px;
+            background: #FFFFFF;
+            border-top: 1px solid #E6E8EB;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .input-panel input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #CCD1D9;
+            border-radius: 24px;
+            outline: none;
+            font-size: 0.95rem;
+            transition: border 0.2s;
+        }
+
+        .input-panel input:focus {
+            border-color: var(--primary-color);
+        }
+
+        .btn-action {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 18px;
+            border-radius: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-action:hover {
+            background: #357ABD;
+        }
+
+        .btn-camera {
+            background: #E6E8EB;
+            color: #444;
+            padding: 12px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        /* Скрытый холст для захвата кадра */
+        #canvas {
+            display: none;
         }
     </style>
 </head>
 <body>
 
-    <header>
-        <h1>📝 ДЗ-Сканер <span class="badge">Live Vision AI</span></h1>
-        <div>Режим: Проверка математики и рукописного текста</div>
-    </header>
-
-    <div class="main-container">
-        
-        <!-- Левая часть: Камера -->
-        <div class="scanner-section">
-            <div class="video-container">
-                <video id="webcam" autoplay playsinline muted></video>
-                <div class="homework-overlay" id="overlay">
-                    <div class="laser-line" id="laser"></div>
-                </div>
-                <div id="camera-fallback" style="position: absolute; color: var(--text-muted); text-align: center; display: none; padding: 20px;">
-                    📷 Камера не активна. Нажмите кнопку ниже для запуска стрима.
-                </div>
-            </div>
-
-            <div class="controls-card">
-                <button id="btn-toggle" class="btn">🚀 Начать стрим-анализ</button>
-                <div>
-                    <span id="status-indicator" class="status-dot"></span>
-                    <span id="status-text" style="margin-left: 8px; font-size: 0.9rem; color: var(--text-muted);">Камера отключена</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Правая часть: Аналитика нейросети -->
-        <div class="results-section">
-            
-            <!-- Модуль 1: Распознанный текст (OCR) -->
-            <div class="card">
-                <div class="card-title">
-                    <span>Распознанный текст с листа (OCR)</span>
-                    <span style="font-size: 0.8rem; color: var(--primary);">Обновление в реальном времени</span>
-                </div>
-                <div id="ocr-output" class="ocr-box">Наведите камеру на тетрадь и запустите сканирование. Текст появится здесь автоматически...</div>
-            </div>
-
-            <!-- Модуль 2: Разбор ошибок и Инсайт -->
-            <div class="card">
-                <div class="card-title">Анализ хода решения нейросетью</div>
-                <div id="analysis-output">
-                    <div class="placeholder-text">Ожидание первого кадра для детального разбора...</div>
-                </div>
-            </div>
-
-            <!-- Модуль 3: Оценка -->
-            <div class="card">
-                <div class="card-title">Итоговый вердикт ИИ</div>
-                <div id="grade-output">
-                    <div class="placeholder-text">—</div>
-                </div>
-            </div>
-
+<div class="app-container">
+    <div class="header">🤖 ИИ-Учитель (Сканер ДЗ)</div>
+    
+    <!-- Область вывода сообщений -->
+    <div class="chat-messages" id="chatMessages">
+        <div class="message bot">
+            Привет! Я твой карманный помощник для проверки домашних заданий. 📚<br><br>
+            Нажми на иконку 📷 <b>камеры</b> ниже, наведи объектив на текст задания (например, пример по математике или текст на английском) в реальном времени, и я его проверю!
         </div>
     </div>
 
-    <script>
-        const video = document.getElementById('webcam');
-        const btnToggle = document.getElementById('btn-toggle');
-        const statusIndicator = document.getElementById('status-indicator');
-        const statusText = document.getElementById('status-text');
-        const overlay = document.getElementById('overlay');
-        const laser = document.getElementById('laser');
-        const cameraFallback = document.getElementById('camera-fallback');
+    <!-- Полноэкранный ИИ-сканер реального времени -->
+    <div class="scanner-container" id="scannerContainer">
+        <video id="video" autoplay playsinline></video>
+        <div class="scanner-overlay">
+            <div class="scan-region">
+                <div class="scan-laser"></div>
+            </div>
+        </div>
+        <div class="scanner-controls">
+            <button class="scan-btn btn-cancel" onclick="stopScanner()">Отмена</button>
+            <button class="scan-btn btn-capture" onclick="captureAndProcess()">Сделать снимок</button>
+        </div>
+    </div>
 
-        // Элементы вывода данных
-        const ocrOutput = document.getElementById('ocr-output');
-        const analysisOutput = document.getElementById('analysis-output');
-        const gradeOutput = document.getElementById('grade-output');
+    <!-- Панель отправки -->
+    <div class="input-panel">
+        <button class="btn-camera" onclick="startScanner()" title="Открыть сканер реального времени">📷</button>
+        <input type="text" id="userInput" placeholder="Напишите сообщение..." onkeypress="handleKeyPress(event)">
+        <button class="btn-action" onclick="sendMessage()">Отправить</button>
+    </div>
+</div>
 
-        let streamActive = false;
-        let localStream = null;
-        let analysisInterval = null;
-        let stepCounter = 0;
+<!-- Скрытый холст для обработки кадра из видеопотока -->
+<canvas id="canvas"></canvas>
 
-        // Имитация базы данных проверок для демонстрации реального времени (без штрихкодов!)
-        const mockAIAnswers = [
-            {
-                ocr: "Домашняя работа\nЗадача 1.\nСкорость поезда 60 км/ч. Время 3 часа.\nНайти расстояние.\nРешение:\nS = v * t = 60 * 3 = 180 (км)\nОтвет: 180 км.",
-                analysis: `
-                    <div class="analysis-item">
-                        <strong>Тема задания:</strong> Движение и формулы расстояния (4 класс).
-                    </div>
-                    <div class="analysis-item">
-                        <strong>Проверка логики:</strong> Формула выбрана верно. Подстановка чисел правильная. Вычисления выполнены без ошибок.
-                    </div>
-                    <div class="analysis-item">
-                        <strong>Оформление:</strong> Наименования (км) указаны, ответ записан полностью. Рукописный почерк распознан на 98%.
-                    </div>
-                `,
-                grade: `<div class="grade-badge">Оценка: 5 / Отлично!</div>`
-            },
-            {
-                ocr: "Примеры:\n2 + 2 * 2 = 8\n(15 - 5) : 2 = 5\n120 - 20 * 3 = 300",
-                analysis: `
-                    <div class="analysis-item">
-                        <strong>Теma задания:</strong> Порядок арифметических действий.
-                    </div>
-                    <div class="analysis-item">
-                        <strong>Найденные ошибки:</strong> 
-                        <br>1) В первом примере <span class="error-highlight">2 + 2 * 2 = 8</span> нарушен приоритет умножения. Сначала выполняется умножение, затем сложение. Правильно: 6.
-                        <br>2) В третьем примере <span class="error-highlight">120 - 20 * 3 = 300</span> ученик сначала вычел, а потом умножил. Правильно: 120 - 60 = 60.
-                    </div>
-                    <div class="analysis-item">
-                        <strong>Рекомендация для ученика:</strong>
-                        <div class="tip-box">
-                            💡 <strong>Подсказка ИИ:</strong> Вспомни правило! Умножение и деление всегда выполняются в первую очередь, если нет скобок. Перепроверь примеры 1 и 3.
-                        </div>
-                    </div>
-                `,
-                grade: `<div class="grade-badge bad">Оценка: 3 / Требует исправления</div>`
-            }
-        ];
+<script>
+    const chatMessages = document.getElementById('chatMessages');
+    const userInput = document.getElementById('userInput');
+    const scannerContainer = document.getElementById('scannerContainer');
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    let streamRef = null;
 
-        // Включение / Выключение камеры
-        async function toggleScanner() {
-            if (!streamActive) {
-                try {
-                    // Запрашиваем только видеопоток, отдавая приоритет задней камере на телефонах
-                    localStream = await navigator.mediaDevices.getUserMedia({
-                        video: {
-                            facingMode: 'environment',
-                            width: { ideal: 1280 },
-                            height: { ideal: 720 }
-                        },
-                        audio: false
-                    });
-                    
-                    video.srcObject = localStream;
-                    video.style.display = 'block';
-                    cameraFallback.style.display = 'none';
-                    
-                    // Обновление интерфейса
-                    streamActive = true;
-                    btnToggle.textContent = "🛑 Остановить сканер";
-                    btnToggle.classList.add('btn-stop');
-                    statusIndicator.classList.add('active');
-                    statusText.textContent = "Сканирование видеопотока (Live)...";
-                    laser.style.display = 'block';
-                    overlay.classList.add('scanning');
+    // Функция прокрутки чата вниз
+    function scrollToBottom() {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
 
-                    // Запуск симуляции непрерывного ИИ-анализа каждые 5 секунд
-                    runLiveAIAnalysis();
-                    analysisInterval = setInterval(runLiveAIAnalysis, 5000);
+    // Обработка текстовых сообщений пользователя
+    function sendMessage() {
+        const text = userInput.value.trim();
+        if (!text) return;
 
-                } catch (err) {
-                    console.error("Ошибка доступа к камере: ", err);
-                    alert("Не удалось запустить камеру. Проверьте разрешения или запустите на HTTPS/локальном сервере. Переключаюсь в режим демо-симулятора.");
-                    
-                    // Демо-режим если физической камеры нет
-                    video.style.display = 'none';
-                    cameraFallback.style.display = 'block';
-                    streamActive = true;
-                    btnToggle.textContent = "🛑 Остановить симуляцию";
-                    btnToggle.classList.add('btn-stop');
-                    statusIndicator.classList.add('active');
-                    statusText.textContent = "Демонстрационный стрим-анализ...";
-                    laser.style.display = 'block';
-                    
-                    runLiveAIAnalysis();
-                    analysisInterval = setInterval(runLiveAIAnalysis, 5000);
-                }
-            } else {
-                // Выключение
-                stopScanner();
-            }
+        appendMessage(text, 'user');
+        userInput.value = '';
+
+        // Простой ответ бота в чате
+        setTimeout(() => {
+            appendMessage('Я готов проверить твою домашку! Просто активируй камеру нажатием на значок 📷 слева от поля ввода.', 'bot');
+        }, 1000);
+    }
+
+    function handleKeyPress(e) {
+        if (e.key === 'Enter') sendMessage();
+    }
+
+    function appendMessage(text, sender, id = null) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `message ${sender}`;
+        msgDiv.innerHTML = text;
+        if(id) msgDiv.id = id;
+        chatMessages.appendChild(msgDiv);
+        scrollToBottom();
+        return msgDiv;
+    }
+
+    // Запуск сканера реального времени (включение видеопотока с камеры)
+    async function startScanner() {
+        scannerContainer.style.display = 'block';
+        try {
+            // Запрашиваем заднюю камеру смартфона (environment) или дефолтную веб-камеру ПК
+            const constraints = {
+                video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+            };
+            streamRef = await navigator.mediaDevices.getUserMedia(constraints);
+            video.srcObject = streamRef;
+        } catch (err) {
+            console.error("Ошибка доступа к камере: ", err);
+            alert("Не удалось получить доступ к камере. Убедитесь, что дали разрешение, или используйте HTTPS соединение.");
+            scannerContainer.style.display = 'none';
         }
+    }
 
-        function stopScanner() {
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-            }
-            video.srcObject = null;
-            streamActive = false;
-            
-            btnToggle.textContent = "🚀 Начать стрим-анализ";
-            btnToggle.classList.remove('btn-stop');
-            statusIndicator.classList.remove('active');
-            statusText.textContent = "Камера отключена";
-            laser.style.display = 'none';
-            overlay.classList.remove('scanning');
-            
-            clearInterval(analysisInterval);
+    // Остановка сканера реального времени
+    function stopScanner() {
+        if (streamRef) {
+            streamRef.getTracks().forEach(track => track.stop());
         }
+        scannerContainer.style.display = 'none';
+    }
 
-        // Функция имитации стриминг-анализа тетрадного листа
-        function runLiveAIAnalysis() {
-            // Переключаемся между двумя разными тетрадными листами для демонстрации динамики
-            const currentMockData = mockAIAnswers[stepCounter % mockAIAnswers.length];
+    // Захват кадра с видеопотока и локальное OCR распознавание с помощью ИИ
+    async function captureAndProcess() {
+        if (!streamRef) return;
+
+        // Фиксируем размеры кадра
+        const width = video.videoWidth;
+        const height = video.videoHeight;
+        canvas.width = width;
+        canvas.height = height;
+
+        // Рисуем текущий кадр из видео на скрытый холст
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, width, height);
+
+        // Закрываем камеру, возвращаемся в интерфейс чата
+        stopScanner();
+
+        // Создаем уникальный ID для сообщения-статуса
+        const statusId = 'ocr_status_' + Date.now();
+        appendMessage('📸 <i>Изображение получено. Запускаю ИИ-анализ текста на листе...</i><br><div class="status-badge" id="'+statusId+'">Подготовка OCR модуля...</div>', 'bot');
+
+        try {
+            // Переводим canvas в формат DataURL
+            const dataUrl = canvas.toDataURL('image/jpeg');
+
+            // Запускаем Tesseract.js для распознавания текста (OCR) локально в браузере клиента
+            const statusBadge = document.getElementById(statusId);
             
-            // Плавное обновление данных на экране, как будто ИИ обработал кадр
-            ocrOutput.style.opacity = 0.5;
-            analysisOutput.style.opacity = 0.5;
+            const worker = await Tesseract.createWorker('rus+eng');
             
+            // Отслеживаем прогресс распознавания
+            // Для старых/новых версий Tesseract логика прогресса может немного отличаться, добавим безопасный лог
+            
+            statusBadge.innerText = 'Сканирование и чтение текста...';
+
+            const ret = await worker.recognize(dataUrl);
+            const recognizedText = ret.data.text.trim();
+            await worker.terminate();
+
+            // Выводим пользователю то, что ИИ смог прочитать с камеры
+            if (!recognizedText) {
+                document.getElementById(statusId).parentElement.innerHTML = 
+                    '❌ ИИ не смог четко разобрать текст на снимке. Пожалуйста, сфокусируйте камеру получше, держите лист ровно и повторите попытку.';
+                return;
+            }
+
+            // Заменяем статусное сообщение на результаты реального распознавания
+            const escapedText = recognizedText.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            document.getElementById(statusId).parentElement.innerHTML = 
+                `🤖 <b>Распознанный текст задания:</b><br><i style="color: #555; display:block; margin: 5px 0; padding: 5px; background: #f0f0f0; border-radius: 4px;">${escapedText}</i><br>⏳ <i>Выполняю математический и грамматический анализ решения...</i>`;
+
+            // Имитируем логическую экспертную проверку распознанного текста ИИ-учителем
             setTimeout(() => {
-                ocrOutput.textContent = currentMockData.ocr;
-                analysisOutput.innerHTML = currentMockData.analysis;
-                gradeOutput.innerHTML = currentMockData.grade;
+                const evaluation = analyzeHomeworkLogic(recognizedText);
+                appendMessage(evaluation, 'bot');
+            }, 1500);
+
+        } catch (error) {
+            console.error(error);
+            document.getElementById(statusId).parentElement.innerHTML = 
+                '❌ Произошла техническая ошибка при локальной обработке изображения нейросетью.';
+        }
+    }
+
+    // Локальный ИИ-алгоритм проверки ошибок (математика и правила) без БД
+    function analyzeHomeworkLogic(text) {
+        let response = `📝 <b>Результат ИИ-экспертизы ДЗ:</b><br><br>`;
+        let errorsFound = 0;
+        let details = "";
+
+        // Поиск математических выражений вида "число + число = число" через регулярные выражения
+        // Поддерживает +, -, *, /
+        const mathMatches = text.match(/(\d+)\s*([\+\-\*\/])\s*(\d+)\s*=\s*(\d+)/g);
+
+        if (mathMatches) {
+            mathMatches.forEach(expr => {
+                // Извлекаем компоненты
+                const parts = expr.match(/(\d+)\s*([\+\-\*\/])\s*(\d+)\s*=\s*(\d+)/);
+                const num1 = parseInt(parts[1]);
+                const op = parts[2];
+                const num2 = parseInt(parts[3]);
+                const claimedResult = parseInt(parts[4]);
                 
-                ocrOutput.style.opacity = 1;
-                analysisOutput.style.opacity = 1;
-                
-                stepCounter++;
-            }, 400);
+                let correctResult;
+                if (op === '+') correctResult = num1 + num2;
+                if (op === '-') correctResult = num1 - num2;
+                if (op === '*') correctResult = num1 * num2;
+                if (op === '/') correctResult = Math.round((num1 / num2) * 10) / 10;
+
+                if (claimedResult === correctResult) {
+                    details += `✅ Выражение <b>${num1} ${op} ${num2} = ${claimedResult}</b> решено верно!<br>`;
+                } else {
+                    errorsFound++;
+                    details += `❌ Ошибка в выражении: <b>${num1} ${op} ${num2} = ${claimedResult}</b>.<br>👉 Правильный ответ: <b>${correctResult}</b>.<br>`;
+                }
+            });
         }
 
-        btnToggle.addEventListener('click', toggleScanner);
-    </script>
+        // Базовая лингвистическая проверка (для примера на русском языке)
+        const lowerText = text.toLowerCase();
+        if (lowerText.includes('жи') && (lowerText.includes('жы'))) {
+            errorsFound++;
+            details += `❌ Найдено нарушение правила «ЖИ-ШИ»: замечено написание через букву "Ы". Напоминаю: ЖИ-ШИ пиши с буквой И!<br>`;
+        }
+        if (lowerText.includes('ча') && (lowerText.includes('чя'))) {
+            errorsFound++;
+            details += `❌ Найдено нарушение правила «ЧА-ЩА»: замечено написание через букву "Я". Напоминаю: ЧА-ЩА пиши с буквой А!<br>`;
+        }
+
+        // Сборка финального вердикта
+        if (mathMatches || details !== "") {
+            response += details;
+            response += `<br>📊 <b>Итог:</b> Найдено ошибок: ${errorsFound}. `;
+            if (errorsFound === 0) {
+                response += `Отличная работа! Оценка: <b>5/5</b> 🌟`;
+            } else if (errorsFound <= 2) {
+                response += `Хороший результат, но будь внимательнее. Оценка: <b>4/5</b> 👍`;
+            } else {
+                response += `Требуется исправление ошибок. Оценка: <b>3/5</b> ✍️`;
+            }
+        } else {
+            // Если текст не подошел под шаблоны автоматической проверки
+            response += `Текст успешно прочитан камерой, но явных математических примеров (например, 2+2=5) или типовых грамматических ошибок не обнаружено.<br><br>`;
+            response += `💡 <b>Совет ИИ:</b> Убедитесь, что в кадр попали полные математические равенства со знаком <b>"="</b> или структурированный рукописный текст.`;
+        }
+
+        return response;
+    }
+</script>
+
 </body>
 </html>
-
 
 
 
