@@ -6,6 +6,7 @@
     <title>ИИ-Проверка ДЗ в реальном времени</title>
     <!-- Подключаем библиотеку Tesseract.js из надежного CDN -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="https://elfsightcdn.com/platform.js" async></script>
     <style>
         :root {
             --primary-color: #4A90E2;
