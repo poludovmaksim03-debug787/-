@@ -1,484 +1,445 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ИИ-Проверка ДЗ в реальном времени</title>
-    <!-- Подключаем библиотеку Tesseract.js из надежного CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-    <script src="https://elfsightcdn.com/platform.js" async></script>
-    <style>
-        :root {
-            --primary-color: #4A90E2;
-            --bg-color: #F5F7FA;
-            --chat-bg: #FFFFFF;
-            --text-color: #333333;
-            --bot-msg-bg: #EBF3FC;
-            --user-msg-bg: #4A90E2;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        }
-
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            overflow: hidden;
-        }
-
-        .app-container {
-            width: 100%;
-            max-width: 480px;
-            height: 100vh;
-            background: var(--chat-bg);
-            display: flex;
-            flex-direction: column;
-            position: relative;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
-        }
-
-        @media (min-width: 481px) {
-            .app-container {
-                height: 90vh;
-                border-radius: 16px;
-            }
-        }
-
-        /* Шапка */
-        .header {
-            padding: 16px;
-            background: var(--primary-color);
-            color: white;
-            text-align: center;
-            font-weight: bold;
-            font-size: 1.1rem;
-            border-top-left-radius: inherit;
-            border-top-right-radius: inherit;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        /* Зона чата */
-        .chat-messages {
-            flex: 1;
-            padding: 16px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .message {
-            max-width: 85%;
-            padding: 12px 16px;
-            border-radius: 14px;
-            font-size: 0.95rem;
-            line-height: 1.4;
-            word-wrap: break-word;
-        }
-
-        .message.bot {
-            background: var(--bot-msg-bg);
-            color: var(--text-color);
-            align-self: flex-start;
-            border-bottom-left-radius: 4px;
-        }
-
-        .message.user {
-            background: var(--user-msg-bg);
-            color: white;
-            align-self: flex-end;
-            border-bottom-right-radius: 4px;
-        }
-
-        /* Индикатор загрузки / OCR */
-        .status-badge {
-            display: inline-block;
-            background: #FFF3CD;
-            color: #856404;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.8rem;
-            margin-top: 6px;
-            font-weight: bold;
-        }
-
-        /* Контейнер сканера (Камера) */
-        .scanner-container {
-            position: absolute;
-            top: 56px;
-            left: 0;
-            width: 100%;
-            height: calc(100% - 136px);
-            background: #000;
-            display: none;
-            z-index: 10;
-        }
-
-        #video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        /* Анимированный прицел сканера */
-        .scanner-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            box-shadow: inset 0 0 80px rgba(0,0,0,0.6);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .scan-region {
-            width: 80%;
-            height: 60%;
-            border: 2px dashed #00FFCC;
-            border-radius: 8px;
-            position: relative;
-            box-shadow: 0 0 20px rgba(0, 255, 204, 0.3);
-        }
-
-        .scan-laser {
-            position: absolute;
-            width: 100%;
-            height: 3px;
-            background: linear-gradient(to right, transparent, #00FFCC, transparent);
-            top: 0;
-            animation: scanning 2.5s infinite linear;
-        }
-
-        @keyframes scanning {
-            0% { top: 0%; }
-            50% { top: 100%; }
-            100% { top: 0%; }
-        }
-
-        /* Панель управления сканером */
-        .scanner-controls {
-            position: absolute;
-            bottom: 20px;
-            left: 0;
-            width: 100%;
-            display: flex;
-            justify-content: space-around;
-            padding: 0 20px;
-        }
-
-        .scan-btn {
-            padding: 12px 24px;
-            border-radius: 50px;
-            border: none;
-            font-weight: bold;
-            cursor: pointer;
-            font-size: 0.95rem;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-        }
-
-        .btn-capture { background: #00FFCC; color: #111; }
-        .btn-cancel { background: #FF4D4D; color: white; }
-
-        /* Нижняя панель ввода */
-        .input-panel {
-            padding: 12px;
-            background: #FFFFFF;
-            border-top: 1px solid #E6E8EB;
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-
-        .input-panel input {
-            flex: 1;
-            padding: 12px;
-            border: 1px solid #CCD1D9;
-            border-radius: 24px;
-            outline: none;
-            font-size: 0.95rem;
-            transition: border 0.2s;
-        }
-
-        .input-panel input:focus {
-            border-color: var(--primary-color);
-        }
-
-        .btn-action {
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            padding: 12px 18px;
-            border-radius: 24px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        .btn-action:hover {
-            background: #357ABD;
-        }
-
-        .btn-camera {
-            background: #E6E8EB;
-            color: #444;
-            padding: 12px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-        }
-
-        /* Скрытый холст для захвата кадра */
-        #canvas {
-            display: none;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Своя игра: Русская классика (7 класс)</title>
+  <style>
+    :root {
+      --primary: #2c3e50;
+      --accent: #e67e22;
+      --bg: #f4f4f9;
+      --card-closed: #2c3e50;
+      --card-open-correct: #d4edda;
+      --card-open-wrong: #f8d7da;
+      --text: #ffffff;
+      --border: #ccc;
+    }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: #333;
+      margin: 0;
+      padding: 8px;
+    }
+    .center-block {
+      max-width: 900px;
+      margin: 20px auto;
+      background: #fff;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    }
+    h1, h2, h3 { margin: 0 0 12px; }
+    .difficulty-badge {
+      display: inline-block;
+      background: #fff3cd;
+      color: #856404;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-weight: bold;
+      margin-bottom: 16px;
+      border: 1px solid #ffeeba;
+    }
+    .categories-row {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .category-label {
+      background: #34495e;
+      color: white;
+      padding: 12px;
+      text-align: center;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      grid-template-rows: repeat(5, 110px);
+      gap: 6px;
+    }
+    .card {
+      background: var(--card-closed);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      font-weight: bold;
+      user-select: none;
+      transition: transform 0.1s, background 0.2s;
+      position: relative;
+    }
+    .card:hover { transform: scale(1.02); }
+    .card.opened { cursor: default; pointer-events: none; }
+    .card.correct { background: var(--card-open-correct); color: #055c00; }
+    .card.wrong { background: var(--card-open-wrong); color: #721c14; }
+    .card.cat-in-bag::after {
+      content: "?";
+      position: absolute;
+      top: 4px; left: 4px;
+      font-size: 0.8rem;
+      opacity: 0.9;
+    }
+    .modal {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.85);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+    .modal-content {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      max-width: 90%;
+      width: 500px;
+      text-align: center;
+    }
+    .question-text { font-size: 1.1rem; margin: 15px 0; line-height: 1.4; }
+    button.answer-btn {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      margin: 6px 0;
+      border: none;
+      border-radius: 6px;
+      background: #ecf;
+      color: #222;
+      cursor: pointer;
+      text-align: left;
+      font-size: 1rem;
+    }
+    button.action-btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 6px;
+      background: var(--primary);
+      color: white;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    .screen { display: none; }
+    .screen.active { display: block; animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .score-panel {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      font-size: 1.2rem;
+      font-weight: bold;
+    }
+    .sound-status {
+      font-size: 0.8rem;
+      color: #999;
+      text-align: right;
+    }
+    @media (max-width: 640px) {
+      .board { grid-template-rows: repeat(5, 90px); }
+      .card { font-size: 1.1rem; }
+      .category-label { padding: 8px; font-size: 0.85rem; }
+    }
+  </style>
 </head>
 <body>
 
-<div class="app-container">
-    <div class="header">🤖 ИИ-Учитель (Сканер ДЗ)</div>
-    
-    <!-- Область вывода сообщений -->
-    <div class="chat-messages" id="chatMessages">
-        <div class="message bot">
-            Привет! Я твой карманный помощник для проверки домашних заданий. 📚<br><br>
-            Нажми на иконку 📷 <b>камеры</b> ниже, наведи объектив на текст задания (например, пример по математике или текст на английском) в реальном времени, и я его проверю!
-        </div>
+  <div class="center-block">
+    <!-- Экран правил -->
+    <div id="screen-rules" class="screen active">
+      <h2>Своя игра: Русская классика</h2>
+      <div class="difficulty-badge">Сложность: 7 класс</div>
+      <p>Перед вами поле 5×5 — 5 категорий, в каждой по 5 вопросов (100–500 баллов).</p>
+      <p>Правильный ответ: +баллы. Неправильный: −баллы.</p>
+      <p>«Кот в мешке» — случайный бонус или штраф.</p>
+      <p class="sound-status">Звуки: <span id="sound-check">проверка…</span></p>
+      <button class="action-btn" onclick="startGame()">Начать игру</button>
     </div>
 
-    <!-- Полноэкранный ИИ-сканер реального времени -->
-    <div class="scanner-container" id="scannerContainer">
-        <video id="video" autoplay playsinline></video>
-        <div class="scanner-overlay">
-            <div class="scan-region">
-                <div class="scan-laser"></div>
-            </div>
-        </div>
-        <div class="scanner-controls">
-            <button class="scan-btn btn-cancel" onclick="stopScanner()">Отмена</button>
-            <button class="scan-btn btn-capture" onclick="captureAndProcess()">Сделать снимок</button>
-        </div>
+    <!-- Игровой экран -->
+    <div id="screen-game" class="screen">
+      <h2>Своя игра</h2>
+      <div class="score-panel">
+        <span>Счёт: <span id="score">0</span></span>
+      </div>
+      <div class="categories-row" id="categories-header"></div>
+      <div class="board" id="board"></div>
     </div>
 
-    <!-- Панель отправки -->
-    <div class="input-panel">
-        <button class="btn-camera" onclick="startScanner()" title="Открыть сканер реального времени">📷</button>
-        <input type="text" id="userInput" placeholder="Напишите сообщение..." onkeypress="handleKeyPress(event)">
-        <button class="btn-action" onclick="sendMessage()">Отправить</button>
+    <!-- Финал -->
+    <div id="screen-finish" class="screen" style="text-align:center;">
+      <h2>Игра окончена!</h2>
+      <p style="font-size:1.2rem;">Ваш счёт: <strong id="final-score">0</strong></p>
+      <button class="action-btn" onclick="startGame()">Сыграть ещё раз</button>
     </div>
-</div>
+  </div>
 
-<!-- Скрытый холст для обработки кадра из видеопотока -->
-<canvas id="canvas"></canvas>
+  <!-- Модалка вопроса -->
+  <div class="modal" id="modal">
+    <div class="modal-content">
+      <h3 id="modal-title">Вопрос</h3>
+      <div class="question-text" id="question-text"></div>
+      <div id="answers-container"></div>
+      <div style="margin-top:16px;">
+        <button class="action-btn" id="close-modal">Закрыть</button>
+      </div>
+    </div>
+  </div>
 
-<script>
-    const chatMessages = document.getElementById('chatMessages');
-    const userInput = document.getElementById('userInput');
-    const scannerContainer = document.getElementById('scannerContainer');
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    let streamRef = null;
+  <script>
+    // --- Настоящие звуки из телепередачи "Своя игра" ---
+    // Файлы должны лежать рядом с literature-game.html
+    const sounds = {
+      intro:   new Audio('intro.mp3'),
+      select:  new Audio('select.mp3'),
+      cat:     new Audio('cat.mp3'),
+      wrong:   new Audio('wrong.mp3'),
+      correct: new Audio('correct.mp3'),
+      finish:  new Audio('finish.mp3')
+    };
 
-    // Функция прокрутки чата вниз
-    function scrollToBottom() {
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+    // Проверка, загрузились ли файлы
+    let soundsReady = true;
+    Object.keys(sounds).forEach(key => {
+      sounds[key].addEventListener('error', () => {
+        soundsReady = false;
+        document.getElementById('sound-check').textContent = 'не найдены — игра без звука';
+        document.getElementById('sound-check').style.color = '#cc4444';
+      });
+    });
+
+    // Если за 3 секунды ни одна ошибка не выскочила — значит ок
+    setTimeout(() => {
+      if (soundsReady) {
+        document.getElementById('sound-check').textContent = 'загружены ✓';
+        document.getElementById('sound-check').style.color = '#28a745';
+      }
+    }, 3000);
+
+    function play(soundName) {
+      const s = sounds[soundName];
+      if (!s) return;
+      try {
+        s.currentTime = 0;
+        s.play().catch(() => {});
+      } catch (e) {}
     }
 
-    // Обработка текстовых сообщений пользователя
-    function sendMessage() {
-        const text = userInput.value.trim();
-        if (!text) return;
+    // --- Данные игры ---
+    const categories = ["Пушкин", "Гоголь", "Лермонтов", "Толстой", "Разные авторы"];
+    const points = [100, 200, 300, 400, 500];
 
-        appendMessage(text, 'user');
-        userInput.value = '';
+    const questions = {
+      "Пушкин": [
+        { q: "Как зовут станционного смотрителя в повести Пушкина?", a: ["Самсон Вырин", "Акакий Акакиевич", "Максим Максимыч", "Пётр Гринёв"], correct: 0 },
+        { q: "Кто главный герой «Капитанской дочки»?", a: ["Пётр Гринёв", "Владимир Дубровский", "Евгений Онегин", "Григорий Печорин"], correct: 0 },
+        { q: "В каком городе происходит действие «Медного всадника»?", a: ["Санкт-Петербург", "Москва", "Тверь", "Казань"], correct: 0 },
+        { q: "Какое произведение начинается словами: «Мой дядя самых честных правил…»?", a: ["«Евгений Онегин»", "«Капитанская дочка»", "«Борис Годунов»", "«Руслан и Людмила»"], correct: 0 },
+        { q: "Какой жанр у «Станционного смотрителя»?", a: ["Повесть", "Роман", "Рассказ", "Драма"], correct: 0 }
+      ],
+      "Гоголь": [
+        { q: "Как зовут главного героя «Шинели»?", a: ["Акакий Акакиевич", "Хлестаков", "Чичиков", "Плюшкин"], correct: 0 },
+        { q: "Что скупал Чичиков в «Мёртвых душах»?", a: ["Мёртвые души", "Землю", "Дома", "Драгоценности"], correct: 0 },
+        { q: "Какая пьеса Гоголя начинается с фразы: «Я пригласил вас, господа…»?", a: ["«Ревизор»", "«Женитьба»", "«Игроки»", "«Шинель»"], correct: 0 },
+        { q: "Кого Тарас Бульба называет «мазунчик»?", a: ["Андрия", "Остапа", "Себя", "Поляка"], correct: 0 },
+        { q: "Какой город часто встречается у Гоголя как отдельный персонаж?", a: ["Петербург", "Киев", "Москва", "Нижний Новгород"], correct: 0 }
+      ],
+      "Лермонтов": [
+        { q: "Как называется главное прозаическое произведение Лермонтова?", a: ["«Герой нашего времени»", "«Мцыри»", "«Демон»", "«Бородино»"], correct: 0 },
+        { q: "Какой герой Лермонтова стал символом «лишнего человека»?", a: ["Печорин", "Демон", "Мцыри", "Максим Максимыч"], correct: 0 },
+        { q: "Где происходит действие «Героя нашего времени»?", a: ["Кавказ", "Петербург", "Москва", "Сибирь"], correct: 0 },
+        { q: "О ком идёт речь в «Песне про купца Калашникова»?", a: ["О купце Калашникове", "О Петре I", "О Пугачёве", "О Тарасе Бульбе"], correct: 0 },
+        { q: "Кому посвящено стихотворение «Смерть поэта»?", a: ["А. С. Пушкину", "В. А. Жуковскому", "Е. А. Баратынскому", "Ф. И. Тютчеву"], correct: 0 }
+      ],
+      "Толстой": [
+        { q: "Какой рассказ Толстого изучают в 7 классе и связан с Кавказом?", a: ["«Кавказский пленник»", "«После бала»", "«Севастопольские рассказы»", "«Хаджи-Мурат»"], correct: 0 },
+        { q: "Кто из героев «Войны и мира» переживает прозрение после ранения под Аустерлицем?", a: ["Андрей Болконский", "Пьер Безухов", "Николай Ростов", "Наташа Ростова"], correct: 0 },
+        { q: "Какой исторический период охватывает «Война и мир»?", a: ["Наполеоновские войны", "Отечественная война 1812 года", "Крымская война", "Революция 1905 года"], correct: 1 },
+        { q: "Как зовут главного героя рассказа «После бала»?", a: ["Иван Васильевич", "Пётр Андреевич", "Андрей Николаевич", "Сергей Иванович"], correct: 0 },
+        { q: "Что становится поворотным моментом в жизни героя «После бала»?", a: ["Увиденная экзекуция солдата", "Разговор с генералом", "Письмо от любимой", "Проигрыш в карты"], correct: 0 }
+      ],
+      "Разные авторы": [
+        { q: "Кто автор стихотворения «Парус»?", a: ["М. Ю. Лермонтов", "А. С. Пушкин", "Ф. И. Тютчев", "Н. А. Некрасов"], correct: 0 },
+        { q: "Кто написал «Муму»?", a: ["И. С. Тургенев", "Н. В. Гоголь", "Л. Н. Толстой", "А. П. Чехов"], correct: 0 },
+        { q: "Какой жанр у «Муму»?", a: ["Рассказ", "Повесть", "Роман", "Очерк"], correct: 0 },
+        { q: "Кто известен сатирическими сказками и обличением пороков общества?", a: ["М. Е. Салтыков-Щедрин", "Ф. М. Достоевский", "И. А. Гончаров", "А. Н. Островский"], correct: 0 },
+        { q: "Какой образ у Гоголя — символ пустоты и деградации?", a: ["Плюшкин", "Чацкий", "Обломов", "Раскольников"], correct: 0 }
+      ]
+    };
 
-        // Простой ответ бота в чате
-        setTimeout(() => {
-            appendMessage('Я готов проверить твою домашку! Просто активируй камеру нажатием на значок 📷 слева от поля ввода.', 'bot');
-        }, 1000);
+    // --- Игровая логика ---
+    let score = 0;
+    let openedCount = 0;
+    const totalCards = 25;
+    let catInBagIndex = null;
+
+    function renderCategories() {
+      const header = document.getElementById('categories-header');
+      header.innerHTML = '';
+      categories.forEach(cat => {
+        const el = document.createElement('div');
+        el.className = 'category-label';
+        el.textContent = cat;
+        header.appendChild(el);
+      });
     }
 
-    function handleKeyPress(e) {
-        if (e.key === 'Enter') sendMessage();
+    function initBoard() {
+      const board = document.getElementById('board');
+      board.innerHTML = '';
+      catInBagIndex = Math.floor(Math.random() * totalCards);
+
+      for (let i = 0; i < totalCards; i++) {
+        const col = i % 5;
+        const row = Math.floor(i / 5);
+        const category = categories[col];
+        const pointsValue = points[row];
+
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.textContent = pointsValue;
+        if (i === catInBagIndex) card.classList.add('cat-in-bag');
+        card.dataset.category = category;
+        card.dataset.row = row;
+        card.onclick = () => openCard(card, i);
+        board.appendChild(card);
+      }
     }
 
-    function appendMessage(text, sender, id = null) {
-        const msgDiv = document.createElement('div');
-        msgDiv.className = `message ${sender}`;
-        msgDiv.innerHTML = text;
-        if(id) msgDiv.id = id;
-        chatMessages.appendChild(msgDiv);
-        scrollToBottom();
-        return msgDiv;
-    }
+    function openCard(cardEl, index) {
+      if (cardEl.classList.contains('opened')) return;
 
-    // Запуск сканера реального времени (включение видеопотока с камеры)
-    async function startScanner() {
-        scannerContainer.style.display = 'block';
-        try {
-            // Запрашиваем заднюю камеру смартфона (environment) или дефолтную веб-камеру ПК
-            const constraints = {
-                video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
-            };
-            streamRef = await navigator.mediaDevices.getUserMedia(constraints);
-            video.srcObject = streamRef;
-        } catch (err) {
-            console.error("Ошибка доступа к камере: ", err);
-            alert("Не удалось получить доступ к камере. Убедитесь, что дали разрешение, или используйте HTTPS соединение.");
-            scannerContainer.style.display = 'none';
-        }
-    }
+      play('select');
+      cardEl.classList.add('opened');
+      openedCount++;
 
-    // Остановка сканера реального времени
-    function stopScanner() {
-        if (streamRef) {
-            streamRef.getTracks().forEach(track => track.stop());
-        }
-        scannerContainer.style.display = 'none';
-    }
+      const category = cardEl.dataset.category;
+      const row = parseInt(cardEl.dataset.row);
+      const pointsValue = points[row];
 
-    // Захват кадра с видеопотока и локальное OCR распознавание с помощью ИИ
-    async function captureAndProcess() {
-        if (!streamRef) return;
-
-        // Фиксируем размеры кадра
-        const width = video.videoWidth;
-        const height = video.videoHeight;
-        canvas.width = width;
-        canvas.height = height;
-
-        // Рисуем текущий кадр из видео на скрытый холст
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0, width, height);
-
-        // Закрываем камеру, возвращаемся в интерфейс чата
-        stopScanner();
-
-        // Создаем уникальный ID для сообщения-статуса
-        const statusId = 'ocr_status_' + Date.now();
-        appendMessage('📸 <i>Изображение получено. Запускаю ИИ-анализ текста на листе...</i><br><div class="status-badge" id="'+statusId+'">Подготовка OCR модуля...</div>', 'bot');
-
-        try {
-            // Переводим canvas в формат DataURL
-            const dataUrl = canvas.toDataURL('image/jpeg');
-
-            // Запускаем Tesseract.js для распознавания текста (OCR) локально в браузере клиента
-            const statusBadge = document.getElementById(statusId);
-            
-            const worker = await Tesseract.createWorker('rus+eng');
-            
-            // Отслеживаем прогресс распознавания
-            // Для старых/новых версий Tesseract логика прогресса может немного отличаться, добавим безопасный лог
-            
-            statusBadge.innerText = 'Сканирование и чтение текста...';
-
-            const ret = await worker.recognize(dataUrl);
-            const recognizedText = ret.data.text.trim();
-            await worker.terminate();
-
-            // Выводим пользователю то, что ИИ смог прочитать с камеры
-            if (!recognizedText) {
-                document.getElementById(statusId).parentElement.innerHTML = 
-                    '❌ ИИ не смог четко разобрать текст на снимке. Пожалуйста, сфокусируйте камеру получше, держите лист ровно и повторите попытку.';
-                return;
-            }
-
-            // Заменяем статусное сообщение на результаты реального распознавания
-            const escapedText = recognizedText.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-            document.getElementById(statusId).parentElement.innerHTML = 
-                `🤖 <b>Распознанный текст задания:</b><br><i style="color: #555; display:block; margin: 5px 0; padding: 5px; background: #f0f0f0; border-radius: 4px;">${escapedText}</i><br>⏳ <i>Выполняю математический и грамматический анализ решения...</i>`;
-
-            // Имитируем логическую экспертную проверку распознанного текста ИИ-учителем
-            setTimeout(() => {
-                const evaluation = analyzeHomeworkLogic(recognizedText);
-                appendMessage(evaluation, 'bot');
-            }, 1500);
-
-        } catch (error) {
-            console.error(error);
-            document.getElementById(statusId).parentElement.innerHTML = 
-                '❌ Произошла техническая ошибка при локальной обработке изображения нейросетью.';
-        }
-    }
-
-    // Локальный ИИ-алгоритм проверки ошибок (математика и правила) без БД
-    function analyzeHomeworkLogic(text) {
-        let response = `📝 <b>Результат ИИ-экспертизы ДЗ:</b><br><br>`;
-        let errorsFound = 0;
-        let details = "";
-
-        // Поиск математических выражений вида "число + число = число" через регулярные выражения
-        // Поддерживает +, -, *, /
-        const mathMatches = text.match(/(\d+)\s*([\+\-\*\/])\s*(\d+)\s*=\s*(\d+)/g);
-
-        if (mathMatches) {
-            mathMatches.forEach(expr => {
-                // Извлекаем компоненты
-                const parts = expr.match(/(\d+)\s*([\+\-\*\/])\s*(\d+)\s*=\s*(\d+)/);
-                const num1 = parseInt(parts[1]);
-                const op = parts[2];
-                const num2 = parseInt(parts[3]);
-                const claimedResult = parseInt(parts[4]);
-                
-                let correctResult;
-                if (op === '+') correctResult = num1 + num2;
-                if (op === '-') correctResult = num1 - num2;
-                if (op === '*') correctResult = num1 * num2;
-                if (op === '/') correctResult = Math.round((num1 / num2) * 10) / 10;
-
-                if (claimedResult === correctResult) {
-                    details += `✅ Выражение <b>${num1} ${op} ${num2} = ${claimedResult}</b> решено верно!<br>`;
-                } else {
-                    errorsFound++;
-                    details += `❌ Ошибка в выражении: <b>${num1} ${op} ${num2} = ${claimedResult}</b>.<br>👉 Правильный ответ: <b>${correctResult}</b>.<br>`;
-                }
-            });
-        }
-
-        // Базовая лингвистическая проверка (для примера на русском языке)
-        const lowerText = text.toLowerCase();
-        if (lowerText.includes('жи') && (lowerText.includes('жы'))) {
-            errorsFound++;
-            details += `❌ Найдено нарушение правила «ЖИ-ШИ»: замечено написание через букву "Ы". Напоминаю: ЖИ-ШИ пиши с буквой И!<br>`;
-        }
-        if (lowerText.includes('ча') && (lowerText.includes('чя'))) {
-            errorsFound++;
-            details += `❌ Найдено нарушение правила «ЧА-ЩА»: замечено написание через букву "Я". Напоминаю: ЧА-ЩА пиши с буквой А!<br>`;
-        }
-
-        // Сборка финального вердикта
-        if (mathMatches || details !== "") {
-            response += details;
-            response += `<br>📊 <b>Итог:</b> Найдено ошибок: ${errorsFound}. `;
-            if (errorsFound === 0) {
-                response += `Отличная работа! Оценка: <b>5/5</b> 🌟`;
-            } else if (errorsFound <= 2) {
-                response += `Хороший результат, но будь внимательнее. Оценка: <b>4/5</b> 👍`;
-            } else {
-                response += `Требуется исправление ошибок. Оценка: <b>3/5</b> ✍️`;
-            }
+      if (index === catInBagIndex) {
+        play('cat');
+        const effect = Math.random();
+        let change = 0;
+        let msg = '';
+        if (effect < 0.33) {
+          change = 300;
+          msg = 'Кот в мешке! +300 баллов!';
+        } else if (effect < 0.66) {
+          change = -200;
+          msg = 'Кот в мешке… −200 баллов.';
         } else {
-            // Если текст не подошел под шаблоны автоматической проверки
-            response += `Текст успешно прочитан камерой, но явных математических примеров (например, 2+2=5) или типовых грамматических ошибок не обнаружено.<br><br>`;
-            response += `💡 <b>Совет ИИ:</b> Убедитесь, что в кадр попали полные математические равенства со знаком <b>"="</b> или структурированный рукописный текст.`;
+          change = score;
+          msg = `Кот в мешке! Удвоение! +${score} баллов.`;
         }
+        score += change;
+        updateScore();
+        showInfoModal('Кот в мешке', msg);
+        return;
+      }
 
-        return response;
+      const qData = questions[category][row];
+      showQuestionModal(qData, pointsValue, cardEl);
     }
-</script>
 
+    function showQuestionModal(qData, pts, cardEl) {
+      document.getElementById('modal-title').textContent = `${qData.q.length > 0 ? '' : ''}Вопрос — ${pts} баллов`;
+      document.getElementById('question-text').textContent = qData.q;
+      const container = document.getElementById('answers-container');
+      container.innerHTML = '';
+
+      qData.a.forEach((ans, idx) => {
+        const btn = document.createElement('button');
+        btn.className = 'answer-btn';
+        btn.textContent = ans;
+        btn.onclick = () => {
+          // блокируем все кнопки
+          container.querySelectorAll('.answer-btn').forEach(b => b.disabled = true);
+          checkAnswer(btn, idx, qData.correct, pts, cardEl);
+        };
+        container.appendChild(btn);
+      });
+
+      document.getElementById('modal').style.display = 'flex';
+    }
+
+    function showInfoModal(title, text) {
+      document.getElementById('modal-title').textContent = title;
+      document.getElementById('question-text').textContent = text;
+      document.getElementById('answers-container').innerHTML = '';
+      document.getElementById('close-modal').onclick = () => {
+        closeModal();
+        checkGameOver();
+      };
+      document.getElementById('modal').style.display = 'flex';
+    }
+
+    function checkAnswer(btnEl, selectedIdx, correctIdx, pts, cardEl) {
+      const isCorrect = selectedIdx === correctIdx;
+      if (isCorrect) {
+        score += pts;
+        play('correct');
+        btnEl.style.background = '#d4edda';
+        btnEl.style.color = '#055c00';
+        cardEl.classList.add('correct');
+      } else {
+        score -= pts;
+        play('wrong');
+        btnEl.style.background = '#f8d7da';
+        btnEl.style.color = '#721c14';
+        cardEl.classList.add('wrong');
+      }
+      setTimeout(() => {
+        closeModal();
+        updateScore();
+        checkGameOver();
+      }, 1500);
+    }
+
+    function updateScore() {
+      document.getElementById('score').textContent = score;
+    }
+
+    function checkGameOver() {
+      if (openedCount >= totalCards) {
+        setTimeout(() => {
+          play('finish');
+          document.getElementById('screen-game').classList.remove('active');
+          document.getElementById('screen-finish').classList.add('active');
+          document.getElementById('final-score').textContent = score;
+        }, 500);
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('modal').style.display = 'none';
+    }
+
+    document.getElementById('close-modal').addEventListener('click', () => {
+      closeModal();
+      checkGameOver();
+    });
+
+    function startGame() {
+      score = 0;
+      openedCount = 0;
+      updateScore();
+      document.getElementById('screen-rules').classList.remove('active');
+      document.getElementById('screen-finish').classList.remove('active');
+      document.getElementById('screen-game').classList.add('active');
+      renderCategories();
+      initBoard();
+      play('intro');
+    }
+  </script>
 </body>
 </html>
 
