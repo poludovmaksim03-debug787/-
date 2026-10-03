@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Своя игра: Русская классика (7 класс)</title>
+  <style>
+    :root {
+      --primary: #2c3e50;
+      --accent: #e67e22;
+      --bg: #f4f4f9;
+      --card-closed: #2c3e50;
+      --card-open-correct: #d4edda;
+      --card-open-wrong: #f8d7da;
+      --text: #ffffff;
+      --border: #ccc;
+    }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: #333;
+      margin: 0;
+      padding: 8px;
+    }
+    .center-block {
+      max-width: 900px;
+      margin: 20px auto;
+      background: #fff;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    }
+    h1, h2, h3 { margin: 0 0 12px; }
+    .difficulty-badge {
+      display: inline-block;
+      background: #fff3cd;
+      color: #856404;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-weight: bold;
+      margin-bottom: 16px;
+      border: 1px solid #ffeeba;
+    }
+    .categories-row {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .category-label {
+      background: #34495e;
+      color: white;
+      padding: 12px;
+      text-align: center;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      grid-template-rows: repeat(5, 110px);
+      gap: 6px;
+    }
+    .card {
+      background: var(--card-closed);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      font-weight: bold;
+      user-select: none;
+      transition: transform 0.1s, background 0.2s;
+      position: relative;
+    }
+    .card:hover { transform: scale(1.02); }
+    .card.opened { cursor: default; pointer-events: none; }
+    .card.correct { background: var(--card-open-correct); color: #055c00; }
+    .card.wrong { background: var(--card-open-wrong); color: #721c14; }
+    .card.cat-in-bag::after {
+      content: "?";
+      position: absolute;
+      top: 4px; left: 4px;
+      font-size: 0.8rem;
+      opacity: 0.9;
+    }
+    .modal {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.85);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+    .modal-content {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      max-width: 90%;
+      width: 500px;
+      text-align: center;
+    }
+    .question-text { font-size: 1.1rem; margin: 15px 0; line-height: 1.4; }
+    button.answer-btn {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      margin: 6px 0;
+      border: none;
+      border-radius: 6px;
+      background: #ecf;
+      color: #222;
+      cursor: pointer;
+      text-align: left;
+      font-size: 1rem;
+    }
+    button.action-btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 6px;
+      background: var(--primary);
+      color: white;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    .screen { display: none; }
+    .screen.active { display: block; animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .score-panel {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      font-size: 1.2rem;
+      font-weight: bold;
+    }
+    .sound-status {
+      font-size: 0.8rem;
+      color: #999;
+      text-align: right;
+    }
+    @media (max-width: 640px) {
+      .board { grid-template-rows: repeat(5, 90px); }
+      .card { font-size: 1.1rem; }
+      .category-label { padding: 8px; font-size: 0.85rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="center-block">
+    <!-- Экран правил -->
+    <div id="screen-rules" class="screen active">
+      <h2>Своя игра: Русская классика</h2>
+      <div class="difficulty-badge">Сложность: 7 класс</div>
+      <p>Перед вами поле 5×5 — 5 категорий, в каждой по 5 вопросов (100–500 баллов).</p>
+      <p>Правильный ответ: +баллы. Неправильный: −баллы.</p>
+      <p>«Кот в мешке» — случайный бонус или штраф.</p>
+      <p class="sound-status">Звуки: <span id="sound-check">проверка…</span></p>
+      <button class="action-btn" onclick="startGame()">Начать игру</button>
+    </div>
+
+    <!-- Игровой экран -->
+    <div id="screen-game" class="screen">
+      <h2>Своя игра</h2>
+      <div class="score-panel">
+        <span>Счёт: <span id="score">0</span></span>
+      </div>
+      <div class="categories-row" id="categories-header"></div>
+      <div class="board" id="board"></div>
+    </div>
+
+    <!-- Финал -->
+    <div id="screen-finish" class="screen" style="text-align:center;">
+      <h2>Игра окончена!</h2>
+      <p style="font-size:1.2rem;">Ваш счёт: <strong id="final-score">0</strong></p>
+      <button class="action-btn" onclick="startGame()">Сыграть ещё раз</button>
+    </div>
+  </div>
+
+  <!-- Модалка вопроса -->
+  <div class="modal" id="modal">
+    <div class="modal-content">
+      <h3 id="modal-title">Вопрос</h3>
+      <div class="question-text" id="question-text"></div>
+      <div id="answers-container"></div>
+      <div style="margin-top:16px;">
+        <button class="action-btn" id="close-modal">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- Настоящие звуки из телепередачи "Своя игра" ---
+    // Файлы должны лежать рядом с literature-game.html
+    const sounds = {
+      intro:   new Audio('intro.mp3'),
+      select:  new Audio('select.mp3'),
+      cat:     new Audio('cat.mp3'),
+      wrong:   new Audio('wrong.mp3'),
+      correct: new Audio('correct.mp3'),
+      finish:  new Audio('finish.mp3')
+    };
+
+    // Проверка, загрузились ли файлы
+    let soundsReady = true;
+    Object.keys(sounds).forEach(key => {
+      sounds[key].addEventListener('error', () => {
+        soundsReady = false;
+        document.getElementById('sound-check').textContent = 'не найдены — игра без звука';
+        document.getElementById('sound-check').style.color = '#cc4444';
+      });
+    });
+
+    // Если за 3 секунды ни одна ошибка не выскочила — значит ок
+    setTimeout(() => {
+      if (soundsReady) {
+        document.getElementById('sound-check').textContent = 'загружены ✓';
+        document.getElementById('sound-check').style.color = '#28a745';
+      }
+    }, 3000);
+
+    function play(soundName) {
+      const s = sounds[soundName];
+      if (!s) return;
+      try {
+        s.currentTime = 0;
+        s.play().catch(() => {});
+      } catch (e) {}
+    }
+
+    // --- Данные игры ---
+    const categories = ["Пушкин", "Гоголь", "Лермонтов", "Толстой", "Разные авторы"];
+    const points = [100, 200, 300, 400, 500];
+
+    const questions = {
+      "Пушкин": [
+        { q: "Как зовут станционного смотрителя в повести Пушкина?", a: ["Самсон Вырин", "Акакий Акакиевич", "Максим Максимыч", "Пётр Гринёв"], correct: 0 },
+        { q: "Кто главный герой «Капитанской дочки»?", a: ["Пётр Гринёв", "Владимир Дубровский", "Евгений Онегин", "Григорий Печорин"], correct: 0 },
+        { q: "В каком городе происходит действие «Медного всадника»?", a: ["Санкт-Петербург", "Москва", "Тверь", "Казань"], correct: 0 },
+        { q: "Какое произведение начинается словами: «Мой дядя самых честных правил…»?", a: ["«Евгений Онегин»", "«Капитанская дочка»", "«Борис Годунов»", "«Руслан и Людмила»"], correct: 0 },
+        { q: "Какой жанр у «Станционного смотрителя»?", a: ["Повесть", "Роман", "Рассказ", "Драма"], correct: 0 }
+      ],
+      "Гоголь": [
+        { q: "Как зовут главного героя «Шинели»?", a: ["Акакий Акакиевич", "Хлестаков", "Чичиков", "Плюшкин"], correct: 0 },
+        { q: "Что скупал Чичиков в «Мёртвых душах»?", a: ["Мёртвые души", "Землю", "Дома", "Драгоценности"], correct: 0 },
+        { q: "Какая пьеса Гоголя начинается с фразы: «Я пригласил вас, господа…»?", a: ["«Ревизор»", "«Женитьба»", "«Игроки»", "«Шинель»"], correct: 0 },
+        { q: "Кого Тарас Бульба называет «мазунчик»?", a: ["Андрия", "Остапа", "Себя", "Поляка"], correct: 0 },
+        { q: "Какой город часто встречается у Гоголя как отдельный персонаж?", a: ["Петербург", "Киев", "Москва", "Нижний Новгород"], correct: 0 }
+      ],
+      "Лермонтов": [
+        { q: "Как называется главное прозаическое произведение Лермонтова?", a: ["«Герой нашего времени»", "«Мцыри»", "«Демон»", "«Бородино»"], correct: 0 },
+        { q: "Какой герой Лермонтова стал символом «лишнего человека»?", a: ["Печорин", "Демон", "Мцыри", "Максим Максимыч"], correct: 0 },
+        { q: "Где происходит действие «Героя нашего времени»?", a: ["Кавказ", "Петербург", "Москва", "Сибирь"], correct: 0 },
+        { q: "О ком идёт речь в «Песне про купца Калашникова»?", a: ["О купце Калашникове", "О Петре I", "О Пугачёве", "О Тарасе Бульбе"], correct: 0 },
+        { q: "Кому посвящено стихотворение «Смерть поэта»?", a: ["А. С. Пушкину", "В. А. Жуковскому", "Е. А. Баратынскому", "Ф. И. Тютчеву"], correct: 0 }
+      ],
+      "Толстой": [
+        { q: "Какой рассказ Толстого изучают в 7 классе и связан с Кавказом?", a: ["«Кавказский пленник»", "«После бала»", "«Севастопольские рассказы»", "«Хаджи-Мурат»"], correct: 0 },
+        { q: "Кто из героев «Войны и мира» переживает прозрение после ранения под Аустерлицем?", a: ["Андрей Болконский", "Пьер Безухов", "Николай Ростов", "Наташа Ростова"], correct: 0 },
+        { q: "Какой исторический период охватывает «Война и мир»?", a: ["Наполеоновские войны", "Отечественная война 1812 года", "Крымская война", "Революция 1905 года"], correct: 1 },
+        { q: "Как зовут главного героя рассказа «После бала»?", a: ["Иван Васильевич", "Пётр Андреевич", "Андрей Николаевич", "Сергей Иванович"], correct: 0 },
+        { q: "Что становится поворотным моментом в жизни героя «После бала»?", a: ["Увиденная экзекуция солдата", "Разговор с генералом", "Письмо от любимой", "Проигрыш в карты"], correct: 0 }
+      ],
+      "Разные авторы": [
+        { q: "Кто автор стихотворения «Парус»?", a: ["М. Ю. Лермонтов", "А. С. Пушкин", "Ф. И. Тютчев", "Н. А. Некрасов"], correct: 0 },
+        { q: "Кто написал «Муму»?", a: ["И. С. Тургенев", "Н. В. Гоголь", "Л. Н. Толстой", "А. П. Чехов"], correct: 0 },
+        { q: "Какой жанр у «Муму»?", a: ["Рассказ", "Повесть", "Роман", "Очерк"], correct: 0 },
+        { q: "Кто известен сатирическими сказками и обличением пороков общества?", a: ["М. Е. Салтыков-Щедрин", "Ф. М. Достоевский", "И. А. Гончаров", "А. Н. Островский"], correct: 0 },
+        { q: "Какой образ у Гоголя — символ пустоты и деградации?", a: ["Плюшкин", "Чацкий", "Обломов", "Раскольников"], correct: 0 }
+      ]
+    };
+
+    // --- Игровая логика ---
+    let score = 0;
+    let openedCount = 0;
+    const totalCards = 25;
+    let catInBagIndex = null;
+
+    function renderCategories() {
+      const header = document.getElementById('categories-header');
+      header.innerHTML = '';
+      categories.forEach(cat => {
+        const el = document.createElement('div');
+        el.className = 'category-label';
+        el.textContent = cat;
+        header.appendChild(el);
+      });
+    }
+
+    function initBoard() {
+      const board = document.getElementById('board');
+      board.innerHTML = '';
+      catInBagIndex = Math.floor(Math.random() * totalCards);
+
+      for (let i = 0; i < totalCards; i++) {
+        const col = i % 5;
+        const row = Math.floor(i / 5);
+        const category = categories[col];
+        const pointsValue = points[row];
+
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.textContent = pointsValue;
+        if (i === catInBagIndex) card.classList.add('cat-in-bag');
+        card.dataset.category = category;
+        card.dataset.row = row;
+        card.onclick = () => openCard(card, i);
+        board.appendChild(card);
+      }
+    }
+
+    function openCard(cardEl, index) {
+      if (cardEl.classList.contains('opened')) return;
+
+      play('select');
+      cardEl.classList.add('opened');
+      openedCount++;
+
+      const category = cardEl.dataset.category;
+      const row = parseInt(cardEl.dataset.row);
+      const pointsValue = points[row];
+
+      if (index === catInBagIndex) {
+        play('cat');
+        const effect = Math.random();
+        let change = 0;
+        let msg = '';
+        if (effect < 0.33) {
+          change = 300;
+          msg = 'Кот в мешке! +300 баллов!';
+        } else if (effect < 0.66) {
+          change = -200;
+          msg = 'Кот в мешке… −200 баллов.';
+        } else {
+          change = score;
+          msg = `Кот в мешке! Удвоение! +${score} баллов.`;
+        }
+        score += change;
+        updateScore();
+        showInfoModal('Кот в мешке', msg);
+        return;
+      }
+
+      const qData = questions[category][row];
+      showQuestionModal(qData, pointsValue, cardEl);
+    }
+
+    function showQuestionModal(qData, pts, cardEl) {
+      document.getElementById('modal-title').textContent = `${qData.q.length > 0 ? '' : ''}Вопрос — ${pts} баллов`;
+      document.getElementById('question-text').textContent = qData.q;
+      const container = document.getElementById('answers-container');
+      container.innerHTML = '';
+
+      qData.a.forEach((ans, idx) => {
+        const btn = document.createElement('button');
+        btn.className = 'answer-btn';
+        btn.textContent = ans;
+        btn.onclick = () => {
+          // блокируем все кнопки
+          container.querySelectorAll('.answer-btn').forEach(b => b.disabled = true);
+          checkAnswer(btn, idx, qData.correct, pts, cardEl);
+        };
+        container.appendChild(btn);
+      });
+
+      document.getElementById('modal').style.display = 'flex';
+    }
+
+    function showInfoModal(title, text) {
+      document.getElementById('modal-title').textContent = title;
+      document.getElementById('question-text').textContent = text;
+      document.getElementById('answers-container').innerHTML = '';
+      document.getElementById('close-modal').onclick = () => {
+        closeModal();
+        checkGameOver();
+      };
+      document.getElementById('modal').style.display = 'flex';
+    }
+
+    function checkAnswer(btnEl, selectedIdx, correctIdx, pts, cardEl) {
+      const isCorrect = selectedIdx === correctIdx;
+      if (isCorrect) {
+        score += pts;
+        play('correct');
+        btnEl.style.background = '#d4edda';
+        btnEl.style.color = '#055c00';
+        cardEl.classList.add('correct');
+      } else {
+        score -= pts;
+        play('wrong');
+        btnEl.style.background = '#f8d7da';
+        btnEl.style.color = '#721c14';
+        cardEl.classList.add('wrong');
+      }
+      setTimeout(() => {
+        closeModal();
+        updateScore();
+        checkGameOver();
+      }, 1500);
+    }
+
+    function updateScore() {
+      document.getElementById('score').textContent = score;
+    }
+
+    function checkGameOver() {
+      if (openedCount >= totalCards) {
+        setTimeout(() => {
+          play('finish');
+          document.getElementById('screen-game').classList.remove('active');
+          document.getElementById('screen-finish').classList.add('active');
+          document.getElementById('final-score').textContent = score;
+        }, 500);
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('modal').style.display = 'none';
+    }
+
+    document.getElementById('close-modal').addEventListener('click', () => {
+      closeModal();
+      checkGameOver();
+    });
+
+    function startGame() {
+      score = 0;
+      openedCount = 0;
+      updateScore();
+      document.getElementById('screen-rules').classList.remove('active');
+      document.getElementById('screen-finish').classList.remove('active');
+      document.getElementById('screen-game').classList.add('active');
+      renderCategories();
+      initBoard();
+      play('intro');
+    }
+  </script>
+</body>
+</html>
